@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<link rel="icon" href="hcc.png" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCC Bet</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="link-container">
+    <a href="https://discord.gg/53w4DqaMqe">Discord</a>
+    <a href="connect.html">Connect Account</a>
+    <a href="donate.html">Donate</a>
+    <a href="https://hashcashfaucet.com">Signup</a>
+    <a href="deposit.html">Deposit / Withdraw</a>
+	<a href="explore.html">Explorer</a>
+    <a href="index.html">Main Page</a>
+
+    <br><b id = "userx"></b>
+</div>
+    <div class="heading1"><h1>Connect HCC Account:</h1></div>
+
+    <h3>Enter your HCC address below to connect it:</h3>
+    <i>When you connect your account you will be assigned a 7 digit user ID. This ID acts as a wallet to hold your funds you deposit to / earn from the site.</i><br><br>
+<form id="connect">
+    <input type="text" id="address" name="address">
+	<input type="submit" value="submit">
+</form>
+    
+<script>
+// Get the form element
+const form = document.getElementById('connect');
+
+// Add submit event listener
+form.addEventListener('submit', async (event) => {
+    // Prevent default form submission (page reload)
+    event.preventDefault();
+
+    const addressValue = document.getElementById('address').value;
+
+    // Use fetch to send POST request
+    fetch("backend.php", {
+        method: "POST",
+        body: JSON.stringify({
+            connection: "active",
+            address: addressValue
+        }),
+        headers: {
+            "Content-type": "application/json"
+        }
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then((json) => {
+            // Display the message in the HTML
+            const messageElement = document.createElement('p');
+            messageElement.textContent = json.status; // Display the status message
+            document.body.appendChild(messageElement);
+        })
+        .catch((error) => console.error('There was a problem with the fetch operation:', error));
+});
+ 
+fetch('backend.php')
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.text(); // or use response.json() if your PHP outputs JSON
+  })
+  .then(data => {
+    console.log(data); // This will log the user's ID
+    document.getElementById("userx").innerHTML = data;
+  })
+  .catch(error => {
+    console.error('There was a problem with the fetch operation:', error);
+  });
+
+    
+    
+</script>
+
+</body>
+</html>

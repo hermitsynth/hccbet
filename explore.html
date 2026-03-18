@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="hcc.png" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="link-container">
+    <a href="https://discord.gg/53w4DqaMqe">Discord</a>
+    <a href="connect.html">Connect Account</a>
+    <a href="donate.html">Donate</a>
+    <a href="https://hashcashfaucet.com">Signup</a>
+    <a href="deposit.html">Deposit / Withdraw</a>
+    <a href="explore.html">Explorer</a>
+    <a href="index.html">Main Page</a>
+    <br><b id="userx"></b>
+</div>
+<div class="heading1">
+    <h1>Explorer:</h1>
+</div>
+<div class="heading1">
+    <h2>Faucet Balance: <br><i id="balance"></i></h2>
+</div>
+<div class="heading1">
+    <h2>All Users Ranked:</h2>
+    <h4>This is a list of every user wallet, sorted by amount of HCC in their wallet.</h4>
+    <textarea style="resize:none;" rows="10" cols="50" id="wallets"></textarea>
+</div>
+<div class="heading1">
+    <h2>All Transactions:</h2>
+    <h4>This is a list of every transaction processed by the server. Each transaction is given a unique hash.</h4>
+    <textarea style="resize:none;" rows="10" cols="50" id="transactions"></textarea>
+</div>
+
+<script>
+    // Fetch user ID from backend
+    fetch('backend.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text(); // or use response.json() if your PHP outputs JSON
+        })
+        .then(data => {
+            console.log(data); // This will log the user's ID
+            document.getElementById("userx").innerHTML = data;
+        })
+        .catch(error => {
+            console.error('There was a problem with the fetch operation:', error);
+        });
+
+
+// Fetch transactions from transactions.json
+fetch('transactions.json')
+    .then(response => response.json())
+    .then(transactions => {
+        const transactionKeys = Object.keys(transactions).reverse(); // Get keys in reverse order
+        const transactionList = transactionKeys.map(key => {
+            const transaction = transactions[key];
+            return `${transaction.hash}: Amount: ${transaction.amount}`;
+        }).join('\n\n'); // Add two newlines for spacing between each transaction
+        document.getElementById("transactions").value = transactionList; // Set textarea value
+    })
+    .catch(error => {
+        console.error('Error fetching transactions:', error);
+    });
+
+    // Fetch user amounts from users.json
+    fetch('users.json')
+        .then(response => response.json())
+        .then(users => {
+            // Sort users by amount descending
+            const sortedUsers = Object.entries(users).sort((a, b) => b[1] - a[1]);
+            const walletsList = sortedUsers.map(([userID, amount]) => `User ID: ${userID}, Amount: ${amount}`).join('\n');
+            document.getElementById("wallets").value = walletsList; // Set textarea value
+        })
+        .catch(error => {
+            console.error('Error fetching users:', error);
+        });
+
+// Use fetch to send POST request
+    fetch("backend.php", {
+        method: "POST",
+        body: JSON.stringify({
+            faucetbalance: "active"
+        }),
+        headers: {
+            "Content-type": "application/json"
+        }
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+	
+            return response.json();
+        })
+        .then((json) => {            
+            document.getElementById("balance").innerText = json.status + " HCC";
+        })
+        .catch((error) => console.error('There was a problem with the fetch operation:', error));
+</script>
+</body>
+</html>
