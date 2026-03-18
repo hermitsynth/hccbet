@@ -77,7 +77,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'race') {
     $protocol   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host       = $_SERVER['HTTP_HOST'];
     $dir        = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-    $backendUrl = $protocol . '://' . $host . $dir . '/backend.php';
+    $backendUrl = '../backend.php';
 
     $sessionCookie = session_name() . '=' . session_id();
 
@@ -682,14 +682,14 @@ $captchaHidden = $captchaSolved ? 'hidden' : '';
         document.getElementById('start-btn').disabled = (selectedHorse < 0);
 
         // Refresh balance display
-        fetch('backend.php')
+        fetch('../backend.php')
             .then(r => r.text())
             .then(txt => { document.getElementById('userx').innerHTML = txt; })
             .catch(console.error);
     }
 
     /* ── Load user info on page open ── */
-    fetch('backend.php')
+    fetch('../backend.php')
         .then(r => r.text())
         .then(txt => {
             document.getElementById('userx').innerHTML = txt;
