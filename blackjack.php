@@ -152,7 +152,7 @@ $btnDisabled   = $captchaSolved ? '' : 'disabled';
 
 
     function post(payload) {
-        return fetch("backend.php", {
+        return fetch("../backend.php", {
             method: "POST",
             headers: { "Content-type": "application/json" },
             body: JSON.stringify(payload)
@@ -218,7 +218,7 @@ $btnDisabled   = $captchaSolved ? '' : 'disabled';
             .catch(e => console.error(e));
     });
 
-    fetch('backend.php')
+    fetch('../backend.php')
         .then(r => r.text())
         .then(data => {
             document.getElementById("userx").innerHTML = data;
