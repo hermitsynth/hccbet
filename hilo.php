@@ -100,7 +100,7 @@ if ($raw !== '') {
                 'ignore_errors' => true,
             ]
         ]);
-        $backendUrl      = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '/backend.php';
+        $backendUrl      = '../backend.php';
         $verifyResponse  = @file_get_contents($backendUrl, false, $verifyCtx);
         if ($verifyResponse !== false) {
             $vd = json_decode($verifyResponse, true);
@@ -576,7 +576,7 @@ if ($raw !== '') {
     document.getElementById('btn-high').addEventListener('click', () => play('high'));
 
     /* ── load user info (unchanged, this is fine client-side) ── */
-    fetch('backend.php')
+    fetch('../backend.php')
         .then(r => r.text())
         .then(data => {
             document.getElementById('userx').innerHTML = data;
