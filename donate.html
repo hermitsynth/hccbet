@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<link rel="icon" href="hcc.png" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donate</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="link-container">
+    <a href="https://discord.gg/53w4DqaMqe">Discord</a>
+    <a href="connect.html">Connect Account</a>
+    <a href="donate.html">Donate</a>
+    <a href = "https://hashcashfaucet.com">Signup</a>
+	<a href="deposit.html">Deposit / Withdraw</a>
+    <a href="explore.html">Explorer</a>
+    <a href="index.html">Main Page</a>
+    <br><b id = "userx"></b>
+</div>
+    <div class = "heading1"><h1>Donate:</h1>
+        <h2>Want to support this project?</h2>
+        <h3>Donate to the faucet: 272d6cd895502480919c401c11c943d5cfeef647 (HCC Address)</h3>
+        <h3>Donate to the developer: bc1qjgjtmjv834ssd6a4pekfppr8uqr5g0pxxkaktu (BTC Address)</h3>
+    </div>
+</body>
+    <script>
+fetch('/var/www/hccbet/backend.php')
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.text(); // or use response.json() if your PHP outputs JSON
+  })
+  .then(data => {
+    console.log(data); // This will log the user's ID
+    document.getElementById("userx").innerHTML = data;
+  })
+  .catch(error => {
+    console.error('There was a problem with the fetch operation:', error);
+  });
+
+    
+    </script>
+</html>
