@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<link rel="icon" href="hcc.png" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit / Withdraw</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="link-container">
+    <a href="https://discord.gg/53w4DqaMqe">Discord</a>
+    <a href="connect.html">Connect Account</a>
+    <a href="donate.html">Donate</a>
+    <a href = "https://hashcashfaucet.com">Signup</a>
+	<a href="deposit.html">Deposit / Withdraw</a>
+	<a href="explore.html">Explorer</a>
+    <a href="index.html">Main Page</a>
+    <br><b id = "userx"></b>
+</div>
+    <div class = "heading1"><h1>Deposit:</h1></div>
+    <h3>After you have <a href = "connect.html">connected</a> your account, to add balance to your account, <a href = "https://hashcashfaucet.com/">send a small amount of HCC to the following address</a>. This will be YOUR wallet for the site, your balance will be updated after sending. Press the button after you have sent it to validate the transaction.</h3>
+    <h4>Transaction wallet: 0c54a79d24b5e24a0a1c574eb2f1983beb400d91</h4>
+    <small>If you do NOT connect your account, or don't press validate, your funds sent to this wallet WILL be lost unless you contact <a href = "mailto:hccbet@proton.me">support.</a></small>
+
+    <form id = "deposit">
+        <input type = "submit" value = "Validate" class = "button1" name = "validatetransaction">
+</form>
+    <div id = "status1"></div>
+<div class = "heading">
+    <h1>Withdraw:</h1>
+    </div>
+<h3>It's very easy to withdraw! Just press the withdraw button below, and so long as you are <a href = "connect.html">connected</a>, all of your funds will be deposited into your HCC wallet!</h3>
+        <form id = "withdraw">
+        <input type = "submit" name = "withdraw" class = "button1" value = "Withdraw">
+</form>
+            <div id = "status2"></div>
+
+</body>
+    <script>
+        
+// Get the form element
+const form = document.getElementById('deposit');
+
+// Add submit event listener
+form.addEventListener('submit', async (event) => {
+    // Prevent default form submission (page reload)
+    event.preventDefault();
+
+
+
+    fetch("/var/www/hccbet/private/backend.php", {
+        method: "POST",
+        body: JSON.stringify({
+            validate: "active"
+        }),
+        headers: {
+            "Content-type": "application/json"
+        }
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+	
+            return response.json();
+        })
+        .then((json) => {
+            // Display the message in the HTML
+            const messageElement = document.createElement('p');
+            messageElement.textContent = json.status; // Display the status message
+            document.getElementById("status1").appendChild(messageElement);
+        })
+        .catch((error) => console.error('There was a problem with the fetch operation:', error));
+});
+        
+
+const form2 = document.getElementById('withdraw');
+
+
+form2.addEventListener('submit', async (event) => {
+   
+    event.preventDefault();
+
+
+   
+    fetch("/var/www/hccbet/private/backend.php", {
+        method: "POST",
+        body: JSON.stringify({
+            withdraw: "active"
+        }),
+        headers: {
+            "Content-type": "application/json"
+        }
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+	
+            return response.json();
+        })
+        .then((json) => {
+
+            const messageElement = document.createElement('p');
+            messageElement.textContent = json.status; 
+            document.getElementById("status2").appendChild(messageElement);
+        })
+        .catch((error) => console.error('There was a problem with the fetch operation:', error));
+});
+
+
+
+// user
+fetch('/var/www/hccbet/private/backend.php')
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    return response.text();
+  })
+  .then(data => {
+    console.log(data);
+    document.getElementById("userx").innerHTML = data;
+  })
+  .catch(error => {
+    console.error('There was a problem with the fetch operation:', error);
+  });
+
+    
+    </script>
+</html>
