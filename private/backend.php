@@ -2,10 +2,76 @@
 session_start();
 error_reporting(0);
 ini_set('display_errors', 1);
+
 header('Content-Type: application/json');
 
+ob_start();
+
+register_shutdown_function(function () {
+    $error = error_get_last();
+
+    if (!$error) {
+        return;
+    }
+
+    $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
+    if (!in_array($error['type'], $fatalTypes, true)) {
+        return;
+    }
+
+    $message = sprintf(
+        '[FATAL] %s in %s on line %d',
+        $error['message'],
+        $error['file'],
+        $error['line']
+    );
+
+    if (defined('HCCBET_LOG_FILE')) {
+        file_put_contents(HCCBET_LOG_FILE, $message . PHP_EOL, FILE_APPEND);
+    }
+
+    if (ob_get_length()) {
+        ob_clean();
+    }
+
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+    }
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        echo json_encode([
+            'error' => 'Backend fatal error',
+            'details' => $message,
+            'active' => false
+        ]);
+    } else {
+        echo 'Backend fatal error';
+    }
+});
+
+define('HCCBET_PRIVATE_DIR', '/var/www/hccbet/private');
+define('HCCBET_USERS_FILE', HCCBET_PRIVATE_DIR . '/users.json');
+define('HCCBET_TRANSACTIONS_FILE', HCCBET_PRIVATE_DIR . '/transactions.json');
+define('HCCBET_BACKUP_FILE', HCCBET_PRIVATE_DIR . '/backup.json');
+define('HCCBET_LOG_FILE', HCCBET_PRIVATE_DIR . '/debug.log');
+define('HCCBET_CURL_LOG_FILE', HCCBET_PRIVATE_DIR . '/curl_debug.log');
+define('HCCBET_ENV_FILE', HCCBET_PRIVATE_DIR . '/.env');
+
+function readJsonFileSafe($filename, $default = []) {
+    if (!file_exists($filename)) {
+        return $default;
+    }
+    $content = file_get_contents($filename);
+    if ($content === false || $content === '') {
+        return $default;
+    }
+    $decoded = json_decode($content, true);
+    return is_array($decoded) ? $decoded : $default;
+}
+
 // ─── Load .env ────────────────────────────────────────────────────────────────
-$env = parse_ini_file(__DIR__ . '/.env');
+$env = parse_ini_file(HCCBET_ENV_FILE);
 if ($env === false) {
     http_response_code(500);
     echo json_encode(["error" => "Failed to load environment configuration."]);
@@ -47,7 +113,7 @@ function vdecrypt($sec, $usr) {
 
 // ─── User / balance helpers ───────────────────────────────────────────────────
 function id($inputString) {
-    $existingIds = json_decode(file_get_contents('/var/www/hccbet//var/www/hccbet//var/www/hccbet/users.json'), true);
+    $existingIds = readJsonFileSafe(HCCBET_USERS_FILE, []);
     $hash = abs(crc32($inputString));
     $uniqueNumber = str_pad($hash % 10000000, 7, '0', STR_PAD_LEFT);
     if (array_key_exists($uniqueNumber, $existingIds)) return $uniqueNumber;
@@ -61,13 +127,13 @@ function id($inputString) {
 }
 
 function getBalance($accountId) {
-    $data = json_decode(file_get_contents('/var/www/hccbet//var/www/hccbet//var/www/hccbet/users.json'), true);
+    $data = readJsonFileSafe(HCCBET_USERS_FILE, []);
     return $data[$accountId] ?? 0;
 }
 
 function updateBalance($accountId, $delta) {
-    $filename = '/var/www/hccbet//var/www/hccbet//var/www/hccbet/users.json';
-    $balances = file_exists($filename) ? json_decode(file_get_contents($filename), true) : [];
+    $filename = HCCBET_USERS_FILE;
+    $balances = readJsonFileSafe($filename, []);
     if (isset($balances[$accountId])) {
         $balances[$accountId] += $delta;
     } else {
@@ -77,10 +143,8 @@ function updateBalance($accountId, $delta) {
 }
 
 function addTransaction($t_id, $usr, $amount) {
-    $filename = '/var/www/hccbet//var/www/hccbet//var/www/hccbet/transactions.json';
-    $transactions = file_exists($filename)
-        ? (json_decode(file_get_contents($filename), true) ?? [])
-        : [];
+    $filename = HCCBET_TRANSACTIONS_FILE;
+    $transactions = readJsonFileSafe($filename, []);
     if (isset($transactions[$t_id])) return;
     $transactions[$t_id] = [
         'hash'   => hash("sha256", strval($usr . date("H:i:s"))),
@@ -91,21 +155,43 @@ function addTransaction($t_id, $usr, $amount) {
 
 function transfertransaction($amount, $type) {
     global $walletIn, $walletOut, $bearerIn, $bearerOut;
+
     $url = 'https://hashcashfaucet.com/api/transfer';
+
     if ($type === "in") {
         $requestBody = json_encode(["to_address" => $walletIn, "amount" => $amount]);
-        $bearer      = $bearerIn;
+        $bearer = $bearerIn;
     } else {
         $requestBody = json_encode(["to_address" => $walletOut, "amount" => $amount]);
-        $bearer      = $bearerOut;
+        $bearer = $bearerOut;
     }
+
     $curl = curl_init($url);
-    curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: application/json', "Authorization: Bearer $bearer"]);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        "Authorization: Bearer $bearer"
+    ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_POST, true);
     curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 20);
+
     $response = curl_exec($curl);
-    if (!curl_errno($curl)) file_put_contents('curl_debug.log', $response, FILE_APPEND);
+    $errno = curl_errno($curl);
+    $error = curl_error($curl);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+
+    $logLine = json_encode([
+        'type' => $type,
+        'amount' => $amount,
+        'status' => $statusCode,
+        'curl_errno' => $errno,
+        'curl_error' => $error,
+        'response' => $response
+    ]) . PHP_EOL;
+
+    file_put_contents(HCCBET_CURL_LOG_FILE, $logLine, FILE_APPEND);
+
     curl_close($curl);
 }
 
@@ -139,7 +225,7 @@ function bj_dealerVisible($hand) {
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_SESSION["id"], $_SESSION["security"], $_SESSION["addr"])) {
         if (userdecrypt($_SESSION["security"], $_SESSION["addr"])) {
-            $balances = json_decode(file_get_contents("/var/www/hccbet//var/www/hccbet//var/www/hccbet/users.json"), true);
+            $balances = readJsonFileSafe(HCCBET_USERS_FILE, []);
             echo "User: " . $_SESSION["id"] . " Balance: " . ($balances[$_SESSION["id"]] ?? 0);
         } else {
             echo "Failed Security Check";
@@ -154,8 +240,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents("php://input"), true);
 
+    if (!is_array($data)) {
+        $data = [];
+    }
+
+    if (isset($data["get_transactions"]) && $data["get_transactions"] === "active") {
+        echo json_encode(readJsonFileSafe(HCCBET_TRANSACTIONS_FILE, []));
+        exit;
+    }
+
+    if (isset($data["get_users"]) && $data["get_users"] === "active") {
+        echo json_encode(readJsonFileSafe(HCCBET_USERS_FILE, []));
+        exit;
+    }
+
     // ── SIGNUP ───────────────────────────────────────────────────────────────
-    if (isset($data["address"]) && $data["connection"] == "active") {
+    if (isset($data["address"]) && (($data["connection"] ?? null) === "active")) {
         $usercheck       = file_get_contents("https://hashcashfaucet.com/api/account?account_id=" . $data["address"]);
         $usercheckresult = json_decode($usercheck);
         if ($data["address"] == $walletOut || $data["address"] == $walletIn) {
@@ -189,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── DEPOSIT ──────────────────────────────────────────────────────────────
-    if ($data["validate"] == "active" && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
+    if ((($data["validate"] ?? null) === "active") && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
         if (userdecrypt($_SESSION["security"], $_SESSION["addr"])) {
             $cont = file_get_contents("https://hashcashfaucet.com/api/events_page?account_id=" . $_SESSION["addr"]);
             if ($cont === false) { echo json_encode(["status" => "Failed to retrieve transactions."]); exit; }
@@ -197,9 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!isset($response['events']) || !is_array($response['events']) || empty($response['events'])) {
                 echo json_encode(["status" => "No transactions found."]); exit;
             }
-            $filename             = '/var/www/hccbet//var/www/hccbet//var/www/hccbet/transactions.json';
-            $existingTransactions = file_exists($filename)
-                ? (json_decode(file_get_contents($filename), true) ?? []) : [];
+            $filename             = HCCBET_TRANSACTIONS_FILE;
+            $existingTransactions = readJsonFileSafe($filename, []);
             $allocate = 0;
             foreach ($response['events'] as $item) {
                 if ($item['type'] == 'transfer_out') {
@@ -226,14 +325,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── FAUCET BALANCE ────────────────────────────────────────────────────────
-    if ($data["faucetbalance"] === "active") {
+    if (($data["faucetbalance"] ?? null) === "active") {
         $response = json_decode(file_get_contents("https://hashcashfaucet.com/api/account?account_id=" . $walletOut), true);
         echo json_encode(["status" => $response["credits"]]);
         exit;
     }
 
     // ── WITHDRAW ──────────────────────────────────────────────────────────────
-    if ($data["withdraw"] === "active" && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
+    if ((($data["withdraw"] ?? null) === "active") && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
         if (userdecrypt($_SESSION["security"], $_SESSION["addr"])) {
             $balance = getBalance($_SESSION["id"]);
             if ($balance < 1) { echo json_encode(["status" => "No balance to withdraw."]); exit; }
@@ -251,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (curl_errno($curl)) {
                 echo json_encode(["status" => 'Error: ' . curl_error($curl)]);
             } else {
-                file_put_contents('curl_debug.log', $response, FILE_APPEND);
+                file_put_contents(HCCBET_CURL_LOG_FILE, $response, FILE_APPEND);
                 if ($statusCode === 200) {
                     $antibalance = $balance * -1;
                     updateBalance($_SESSION["id"], $antibalance);
@@ -272,7 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── VERIFY token ──────────────────────────────────────────────────────────
-    if ($data["verify"] === "active" && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
+    if ((($data["verify"] ?? null) === "active") && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
         if (userdecrypt($_SESSION["security"], $_SESSION["addr"])) {
             $verify = openssl_encrypt(
                 $_SESSION["addr"] . ":" . date("d.H.i"),
@@ -290,7 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ─────────────────────────────────────────────────────────────────────────
     // ── BLACKJACK ─────────────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────────────────
-    if ($data["blackjack"] === "active" && isset($_SESSION["captchasolved"])) {
+    if (($data["blackjack"] ?? null) === "active") {
 
         if (!isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
             echo json_encode(["error" => "Not logged in.", "active" => false]); exit;
@@ -298,7 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!userdecrypt($_SESSION["security"], $_SESSION["addr"])) {
             echo json_encode(["error" => "Security check failed.", "active" => false]); exit;
         }
-        if ($_SESSION["captchasolved"] == "false") {
+        if (!isset($_SESSION["captchasolved"]) || $_SESSION["captchasolved"] !== "true") {
             echo json_encode(["error" => "Captcha failed. I see you firefly", "active" => false]); exit;
         }
 
@@ -487,7 +586,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     // ── HILO GAME ─────────────────────────────────────────────────────────────
-    if ($data["hilo"] == "active" && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"]) && isset($data["action"], $data["bet"], $data["rolled"], $data["verifytransaction"])) {
+    if (($data["hilo"] ?? null) === "active") {
+        if (!isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
+            echo json_encode(["status" => "Not logged in."]);
+            exit();
+        }
+        if (!isset($data["action"], $data["bet"], $data["rolled"], $data["verifytransaction"])) {
+            echo json_encode(["status" => "Missing Hilo parameters."]);
+            exit();
+        }
         if (!isset($_SESSION['captchasolved']) || $_SESSION['captchasolved'] !== 'true') {
             echo json_encode(['status' => 'Captcha not solved.']);
             exit();
@@ -511,25 +618,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     transfertransaction($bet, "in");
                     $newbal = getBalance($_SESSION["id"]);
                     echo json_encode(["status" => "You won " . $bet . " HCC! New balance: " . $newbal]);
+                    exit;
                 } elseif ($data["action"] == "lose") {
                     updateBalance($_SESSION["id"], $bet * -1);
                     addTransaction($txId, $_SESSION["id"], $bet * -1);
                     transfertransaction($bet, "out");
                     $newbal = getBalance($_SESSION["id"]);
                     echo json_encode(["status" => "You lost " . $bet . " HCC... New balance: " . $newbal]);
+                    exit;
                 } else {
                     echo json_encode(["status" => "Invalid action."]);
+                    exit;
                 }
             } else {
                 echo json_encode(["status" => "Secondary verification failed."]);
+                exit;
             }
         } else {
             echo json_encode(["status" => "Security check failed."]);
+            exit;
         }
     }
 
     // ── HORSE RACING GAME ─────────────────────────────────────────────────────
-    if ($data["horseracing"] === "active" && isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"]) && isset($data["verifytransaction"], $data["won"], $data["horse"], $data["bet"], $data["winner"])) {
+    if (($data["horseracing"] ?? null) === "active") {
+        if (!isset($_SESSION["security"], $_SESSION["addr"], $_SESSION["id"])) {
+            echo json_encode(["status" => "Not logged in."]);
+            exit();
+        }
+        if (!isset($data["verifytransaction"], $data["won"], $data["horse"], $data["bet"], $data["winner"])) {
+            echo json_encode(["status" => "Missing horse racing parameters."]);
+            exit();
+        }
         if (!isset($_SESSION['captchasolved']) || $_SESSION['captchasolved'] !== 'true') {
             echo json_encode(['status' => 'Captcha not solved.']);
             exit();
@@ -576,5 +696,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(["status" => "Security check failed."]);
         }
     }
+    // Fallback for unknown POST payloads
+    echo json_encode([
+        "error" => "Unhandled POST request.",
+        "received_keys" => array_keys($data)
+    ]);
+    exit;
 }
-?>

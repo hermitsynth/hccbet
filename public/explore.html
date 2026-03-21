@@ -37,7 +37,7 @@
 
 <script>
     // Fetch user ID from backend
-    fetch('/var/www/hccbet/private/backend.php')
+    fetch('/backend.php')
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -53,36 +53,61 @@
         });
 
 
-// Fetch transactions from /var/www/hccbet//var/www/hccbet//var/www/hccbet/private/transactions.json
-fetch('/var/www/hccbet//var/www/hccbet//var/www/hccbet/private/transactions.json')
-    .then(response => response.json())
+// Fetch transactions from backend
+fetch("/backend.php", {
+    method: "POST",
+    body: JSON.stringify({
+        get_transactions: "active"
+    }),
+    headers: {
+        "Content-type": "application/json"
+    }
+})
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
     .then(transactions => {
-        const transactionKeys = Object.keys(transactions).reverse(); // Get keys in reverse order
+        const transactionKeys = Object.keys(transactions).reverse();
         const transactionList = transactionKeys.map(key => {
             const transaction = transactions[key];
             return `${transaction.hash}: Amount: ${transaction.amount}`;
-        }).join('\n\n'); // Add two newlines for spacing between each transaction
-        document.getElementById("transactions").value = transactionList; // Set textarea value
+        }).join('\n\n');
+        document.getElementById("transactions").value = transactionList;
     })
     .catch(error => {
         console.error('Error fetching transactions:', error);
     });
 
-    // Fetch user amounts from /var/www/hccbet//var/www/hccbet//var/www/hccbet/private/users.json
-    fetch('/var/www/hccbet//var/www/hccbet//var/www/hccbet/private/users.json')
-        .then(response => response.json())
-        .then(users => {
-            // Sort users by amount descending
-            const sortedUsers = Object.entries(users).sort((a, b) => b[1] - a[1]);
-            const walletsList = sortedUsers.map(([userID, amount]) => `User ID: ${userID}, Amount: ${amount}`).join('\n');
-            document.getElementById("wallets").value = walletsList; // Set textarea value
-        })
-        .catch(error => {
-            console.error('Error fetching users:', error);
-        });
+// Fetch user amounts from backend
+fetch("/backend.php", {
+    method: "POST",
+    body: JSON.stringify({
+        get_users: "active"
+    }),
+    headers: {
+        "Content-type": "application/json"
+    }
+})
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(users => {
+        const sortedUsers = Object.entries(users).sort((a, b) => b[1] - a[1]);
+        const walletsList = sortedUsers.map(([userID, amount]) => `User ID: ${userID}, Amount: ${amount}`).join('\n');
+        document.getElementById("wallets").value = walletsList;
+    })
+    .catch(error => {
+        console.error('Error fetching users:', error);
+    });
 
 // Use fetch to send POST request
-    fetch("/var/www/hccbet/private/backend.php", {
+    fetch("/backend.php", {
         method: "POST",
         body: JSON.stringify({
             faucetbalance: "active"
