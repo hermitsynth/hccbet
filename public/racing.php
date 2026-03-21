@@ -72,17 +72,17 @@ if (isset($_POST['action']) && $_POST['action'] === 'race') {
 
     $payout = $bet * 5; // 5x the bet (1 HCC per horse x 5 horses)
 
-    // -- Step 1: Build absolute URL for /var/www/hccbet/private/backend.php --
+    // -- Step 1: Build absolute URL for /backend.php --
     // curl cannot resolve relative paths — it must have a full URL.
     $protocol   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host       = $_SERVER['HTTP_HOST'];
     $dir        = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-    $backendUrl = $protocol . '://' . $host . $dir . '//var/www/hccbet/private/backend.php';
+    $backendUrl = $protocol . '://' . $host . $dir . '//backend.php';
 
     $sessionCookie = session_name() . '=' . session_id();
 
-    // Release the session lock before making curl requests to /var/www/hccbet/private/backend.php.
-    // /var/www/hccbet/private/backend.php calls session_start() too — without this, it blocks waiting
+    // Release the session lock before making curl requests to /backend.php.
+    // /backend.php calls session_start() too — without this, it blocks waiting
     // for the lock and both curl calls time out, returning empty responses.
     session_write_close();
 
@@ -126,7 +126,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'race') {
 
     $won = ($winner === $selected);
 
-    // -- Step 2: Report transaction result to /var/www/hccbet/private/backend.php and capture response --
+    // -- Step 2: Report transaction result to /backend.php and capture response --
     $ch2 = curl_init($backendUrl);
     curl_setopt_array($ch2, [
         CURLOPT_RETURNTRANSFER => true,
@@ -682,14 +682,14 @@ $captchaHidden = $captchaSolved ? 'hidden' : '';
         document.getElementById('start-btn').disabled = (selectedHorse < 0);
 
         // Refresh balance display
-        fetch('/var/www/hccbet/private/backend.php')
+        fetch('/backend.php')
             .then(r => r.text())
             .then(txt => { document.getElementById('userx').innerHTML = txt; })
             .catch(console.error);
     }
 
     /* ── Load user info on page open ── */
-    fetch('/var/www/hccbet/private/backend.php')
+    fetch('/backend.php')
         .then(r => r.text())
         .then(txt => {
             document.getElementById('userx').innerHTML = txt;

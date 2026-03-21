@@ -49,7 +49,7 @@ form.addEventListener('submit', async (event) => {
 
 
 
-    fetch("/var/www/hccbet/private/backend.php", {
+    fetch("/backend.php", {
         method: "POST",
         body: JSON.stringify({
             validate: "active"
@@ -84,7 +84,7 @@ form2.addEventListener('submit', async (event) => {
 
 
    
-    fetch("/var/www/hccbet/private/backend.php", {
+    fetch("/backend.php", {
         method: "POST",
         body: JSON.stringify({
             withdraw: "active"
@@ -112,7 +112,7 @@ form2.addEventListener('submit', async (event) => {
 
 
 // user
-fetch('/var/www/hccbet/private/backend.php')
+fetch('/backend.php')
   .then(response => {
     if (!response.ok) {
       throw new Error('Network response was not ok');

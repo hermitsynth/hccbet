@@ -70,11 +70,11 @@ if ($raw !== '') {
             if ($side === 'low'  && $rolled < $loseLow)  $won = true;
         }
 
-        /* ── forward result to /var/www/hccbet/private/backend.php server-side (no client involvement) ── */
+        /* ── forward result to /backend.php server-side (no client involvement) ── */
         $balanceMsg = '';
 
-        // Release the session lock before making server-side HTTP calls to /var/www/hccbet/private/backend.php.
-        // Without this, /var/www/hccbet/private/backend.php blocks forever waiting to acquire the same session lock
+        // Release the session lock before making server-side HTTP calls to /backend.php.
+        // Without this, /backend.php blocks forever waiting to acquire the same session lock
         // that hilo.php is already holding — a silent deadlock causing timeouts.
         session_write_close();
 
@@ -88,7 +88,7 @@ if ($raw !== '') {
             $cookieHeader = implode('; ', $pairs);
         }
 
-        // Step 1: fetch a verify token from /var/www/hccbet/private/backend.php
+        // Step 1: fetch a verify token from /backend.php
         $verifyToken = '';
         $verifyCtx = stream_context_create([
             'http' => [
@@ -100,7 +100,7 @@ if ($raw !== '') {
                 'ignore_errors' => true,
             ]
         ]);
-        $backendUrl      = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '//var/www/hccbet/private/backend.php';
+        $backendUrl      = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . '//backend.php';
         $verifyResponse  = @file_get_contents($backendUrl, false, $verifyCtx);
         if ($verifyResponse !== false) {
             $vd = json_decode($verifyResponse, true);
@@ -118,7 +118,7 @@ if ($raw !== '') {
             'verifytransaction' => $verifyToken
         ]);
 
-        // Send the win/lose payload (with verify token) to /var/www/hccbet/private/backend.php
+        // Send the win/lose payload (with verify token) to /backend.php
         $ctx = stream_context_create([
             'http' => [
                 'method'  => 'POST',
@@ -132,7 +132,7 @@ if ($raw !== '') {
         $backendResponse = @file_get_contents($backendUrl, false, $ctx);
         if ($backendResponse !== false) {
             $bd = json_decode($backendResponse, true);
-            // FIX 1: /var/www/hccbet/private/backend.php returns "status", not "balance_msg"
+            // FIX 1: /backend.php returns "status", not "balance_msg"
             if (!empty($bd['status'])) {
                 $balanceMsg = $bd['status'];
             }
@@ -541,7 +541,7 @@ if ($raw !== '') {
                         : 'Rolled ' + fmt(data.rolled) + ' — wrong side!';
                 }
 
-                // FIX 2: populate #server-msg with the status message from /var/www/hccbet/private/backend.php
+                // FIX 2: populate #server-msg with the status message from /backend.php
                 if (data.balance_msg) {
                     serverEl.textContent = data.balance_msg;
                 }
@@ -576,7 +576,7 @@ if ($raw !== '') {
     document.getElementById('btn-high').addEventListener('click', () => play('high'));
 
     /* ── load user info (unchanged, this is fine client-side) ── */
-    fetch('/var/www/hccbet/private/backend.php')
+    fetch('/backend.php')
         .then(r => r.text())
         .then(data => {
             document.getElementById('userx').innerHTML = data;
