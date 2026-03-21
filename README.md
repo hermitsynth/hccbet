@@ -1,0 +1,3 @@
+Full code for the HCCBET website.
+Available at https://bet.hashcashfaucet.com/
+Future updates may come soon...
